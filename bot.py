@@ -77,10 +77,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 if __name__ == '__main__':
-        # Your token from BotFather
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
+    # Your token from BotFather
+    BOT_TOKEN = "8941199738:AAFs0IivEoEecPtmheF-bK5KZ3wqOGQreHo"
+    
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
