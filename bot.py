@@ -11,7 +11,7 @@ from telegram.ext import (
     filters,
 )
 
-# --- STEP 1: MINI WEB SERVER TO KEEP RENDER AWAKE ---
+# --- MINI WEB SERVER TO KEEP RENDER AWAKE ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -25,7 +25,6 @@ def run_web_server():
 
 # Start the web server in a separate background thread
 threading.Thread(target=run_web_server, daemon=True).start()
----------------------------------------------------
 
 # Conversation states
 EMAIL, PASSWORD, RECOVERY_EMAIL, TWO_FACTOR_KEY, TELEBIRR = range(5)
